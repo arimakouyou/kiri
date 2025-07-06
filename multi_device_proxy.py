@@ -223,6 +223,7 @@ class KeyboardProxy:
 class KeyBowManager:
     def __init__(self, loop):
         self.loop = loop
+        self.keyboard_hid_path = '/dev/hidg0'
         Button.was_held = False
         self.btn1 = Button(6, hold_time=3, bounce_time=0.05)
         self.btn1.when_held = self.held1
@@ -231,6 +232,24 @@ class KeyBowManager:
         self.btn2.when_held = self.held2
         self.btn2.when_released = self.released2
         logging.info("KeyBow (GPIOボタン) マネージャーを初期化しました。")
+
+    def send_key_combination(self, modifier_bits, key_code):
+        try:
+            press_report = bytearray(8)
+            press_report[0] = modifier_bits
+            press_report[2] = key_code
+            
+            release_report = bytearray(8)
+            
+            with open(self.keyboard_hid_path, 'rb+') as fd:
+                fd.write(bytes(press_report))
+                time.sleep(0.01)
+                fd.write(bytes(release_report))
+                
+        except OSError as e:
+            logging.error(f"HIDレポート送信エラー {self.keyboard_hid_path}: {e}")
+        except Exception as e:
+            logging.error(f"予期せぬエラー: {e}")
 
     def held1(self, btn):
         self.btn1.was_held = True
@@ -242,7 +261,9 @@ class KeyBowManager:
         if not self.btn1.was_held: self.pressed1(btn)
         self.btn1.was_held = False
 
-    def pressed1(self, btn): logging.info("ボタン1が押されました。")
+    def pressed1(self, btn): 
+        logging.info("ボタン1が押されました。Alt+Aを送信します。")
+        self.send_key_combination(0x04, 0x04)
 
     def held2(self, btn):
         self.btn2.was_held = True
@@ -254,7 +275,9 @@ class KeyBowManager:
         if not self.btn2.was_held: self.pressed2(btn)
         self.btn2.was_held = False
 
-    def pressed2(self, btn): logging.info("ボタン2が押されました。")
+    def pressed2(self, btn): 
+        logging.info("ボタン2が押されました。Alt+Yを送信します。")
+        self.send_key_combination(0x04, 0x1c)
 
 async def shutdown(loop, signal=None):
     if signal: logging.info(f"終了シグナル {signal.name} を受信...")
