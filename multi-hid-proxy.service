@@ -1,0 +1,16 @@
+[Unit]
+Description=Multi HID Proxy Service for Keyboards and Mice
+Wants=network-online.target
+After=network-online.target multi-hid-gadget.service
+Requires=multi-hid-gadget.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/multi_device_proxy.py
+Restart=always
+User=root
+Group=root
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+

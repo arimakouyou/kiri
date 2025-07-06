@@ -1,90 +1,91 @@
-# KIRI - Keyboard Interception, Remapping and Injection using Raspberry Pi as a HID Proxy.
+# Multi-Device HID Proxy
 
-Near limitless abilities for a keyboard warrior.
+## 1. 概要
 
-## Features
+このプロジェクトは、viggofalster/kiriをベースとしたRaspberry PiなどのLinuxデバイスを、複数のBluetoothキーボードやマウスを中継するUSBプロキシデバイスとして機能させるためのソフトウェア一式です。
 
-* Simple remap of any key or key combination to any key or key combination.
-* Build keyboard mapping and/or macros using python.
-* Completely external and thereby supports any operating system capable of receiving keyboard input via USB.
+これにより、複数の無線デバイスを、あたかも単一の有線USBデバイスであるかのようにホストPCに接続できます。実行中のデバイスの動的な接続・切断にも対応しています。
 
-## Hardware Requirements
+## 2. 主な機能
 
-* A Raspberry Pi with an USB OTG port (e.g. Pi 4 and Zero W) - this is required so the Raspberry Pi may identify itself
-  as a Human Interface Device (HID).
-* An additional USB port for keyboard input to the Raspberri Pi. Only if using a bluetooth keyboard the Raspberri Pi
-  Zero W will suffice, otherwise a Raspberri Pi 4 is needed.
+* **複数デバイス対応**: 複数のキーボードとマウスを同時に接続し、プロキシとして動作させます。
+* **動的認識**: プログラムの実行中にBluetoothデバイスを接続・切断しても、自動で認識・解放します。
+* **キーリマップ**: US配列のキーボードを日本語配列風にリマップする機能を内蔵しています。
+* **Systemd連携**: システム起動時に、USBガジェットの設定とプロキシプログラムが自動的に起動します。
+* **Keybow対応**: Raspberry PiのGPIOピンに接続したボタンに、カスタムの動作を割り当てることができます。
 
-## OS Requirements
+## 3. ファイル構成
 
-* Testing has only been conducted with Raspberrian OS - other distributions may work also.
-* For convenience and later modifications one can enable sshd on the raspberry pi and connect it to e.g. WiFi-LAN.
+このパッケージには以下のファイルが含まれています。
 
-## Software Requirements
-* python >= 3.4 with evdev and importlib installed (pip3 install evdev importlib)
+| ファイル名                      | 説明                                                              |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `multi_device_proxy.py`         | メインのプロキシプログラムです。デバイスを監視し、入力を中継します。 |
+| `setup_hid_gadget.sh`           | USB HIDガジェット（キーボードとマウス）を作成・設定するスクリプトです。 |
+| `multi-hid-gadget.service`      | `setup_hid_gadget.sh`をシステム起動時に実行するためのSystemdサービスです。 |
+| `multi-hid-proxy.service`       | `multi_device_proxy.py`をシステムサービスとして実行するための定義ファイルです。 |
+| `install.sh`                    | すべてのファイルを適切な場所にコピーし、サービスを有効化するスクリプトです。 |
+| `uninstall.sh`                  | インストールされたすべてのファイルをシステムから削除するスクリプトです。 |
+| `README.md`                     | このファイルです。                                                |
 
-## Install
+## 4. 前提条件
 
-### Enable USB OTG via the dwc2 module and allow us to register a HID device in non-kernel mode
+* USB On-The-Go (OTG) をサポートするLinuxデバイス（例: Raspberry Pi Zero, Raspberry Pi 4など）
+* Python 3
+* 必要なPythonライブラリ:
+    * `evdev`: `sudo apt-get install python3-evdev` などでインストール
+    * `gpiozero` (任意): `sudo apt-get install python3-gpiozero` などでインストール
 
-```sh
-sudo -i
-echo "dtoverlay=dwc2" | tee -a /boot/config.txt
-echo "dwc2" | tee -a /etc/modules
-echo "libcomposite" | tee -a /etc/modules
+## 5. インストール手順
+
+1. このパッケージに含まれるすべてのファイルを、デバイスの同じディレクトリに配置します。
+2. ターミナルで以下のコマンドを実行し、インストールスクリプトに実行権限を与えます。
+   ```bash
+   chmod +x install.sh uninstall.sh
+   ```
+3. 以下のコマンドでインストールを実行します。
+   ```bash
+   sudo ./install.sh
+   ```
+4. インストール完了後、システムを再起動します。
+   ```bash
+   sudo reboot
+   ```
+   再起動後、サービスが自動的に開始され、プロキシが有効になります。
+
+## 6. 設定
+
+### デバイス名のカスタマイズ
+
+お使いのキーボードやマウスのメーカーに合わせて、プロキシが認識するデバイスを変更できます。
+
+1. `multi_device_proxy.py` ファイルを開きます。
+2. `device_monitor` 関数内の以下の行を編集します。
+   ```python
+   MOUSE_DEVICENAME_PATTERN = 'HHKB-Studio4 Mouse|Logitech.*'
+   KEYBOARD_DEVICENAME_PATTERN = 'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*'
+   ```
+   ここに、お使いのデバイス名に一致する正規表現パターンを追加・変更してください。デバイス名の確認方法は、[こちらの手順](#デバイス名の確認方法)を参照してください。
+
+### 接続数の変更
+
+同時に接続するキーボードとマウスの最大数を変更できます。
+
+1. `multi_device_proxy.py` ファイルと `setup_hid_gadget.sh` ファイルの両方を開きます。
+2. 両方のファイルで、キーボードとマウス用のHIDデバイス (`/dev/hidgX`) の数を一致させるように設定を変更してください。
+
+## 7. アンインストール
+
+システムからこのプログラムを削除するには、以下のコマンドを実行します。
+```bash
+sudo ./uninstall.sh
 ```
 
-Add binary to PATH:
+---
 
-```sh
-sudo ln -s /root/kiri/kiri_usb /usr/bin
-```
+### 付録: デバイス名の確認方法
 
-Modify /etc/rc.local to call the script on boot.
+ターミナルで以下のコマンドを実行すると、現在システムに認識されている入力デバイスの一覧が表示されます。この中から、お使いのデバイスの正確な名前を確認できます。
+```bash
+python3 -c "import evdev; [print(f'Path: {p}, Name: \"{evdev.InputDevice(p).name}\"') for p in evdev.list_devices()]"
 
-```sh
-nano /etc/rc.local
-```
-
-Insert the following before exit 0.
-
-```sh
-/usr/bin/kiri_usb
-```
-
-Reboot the device.
-
-```sh
-reboot
-```
-
-After reboot, verify that /dev/hidg0 exists.
-
-```sh
-ls /dev/hidg0
-```
-
-The Raspberry Pi is now setup so e.g. a python script can write USB reports to the USB OTG port by simply writing to
-/dev/hidg0.
-
-
-### Installing KIRI
-
-1. Using git, checkout to a folder accessible by a super-user, e.g. /root/kiri.
-</br>or
-2. Copy the files of this repository to e.g. /root/kiri
-3. You should now have a file with the following path: /root/kiri/kiri.py on the raspberry pi.
-
-Set up a service or e.g. crontab to run kiri.py on boot as a super-user (e.g. root).
-
-## Example with crontab
-```sh
-sudo -i
-crontab -e
-```
-
-Add the following line
-
-```
-@reboot python3 /root/kiri/kiri.py >>/var/log/kiri.log
-```
