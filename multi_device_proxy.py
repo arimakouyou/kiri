@@ -11,6 +11,8 @@ from enum import IntEnum
 from evdev import InputDevice, ecodes, categorize
 from hid_keys import hid_key_map as hid_keys
 
+REMAP_ENABLED = True
+
 try:
     from gpiozero import Button
 except ImportError:
@@ -171,6 +173,9 @@ class KeyboardProxy:
             self.update_state()
 
     def remap(self, keycode):
+        global REMAP_ENABLED
+        if not REMAP_ENABLED:
+            return hid_keys.get(keycode, 0)
         if keycode not in hid_keys: return 0
         if keycode == 'KEY_LEFTBRACE': keycode = 'KEY_RIGHTBRACE'
         elif keycode == 'KEY_RIGHTBRACE': keycode = 'KEY_BACKSLASH'
@@ -233,16 +238,21 @@ class KeyBowManager:
         logging.info("KeyBow (GPIOボタン) マネージャーを初期化しました。")
 
     def held1(self, btn):
+        global REMAP_ENABLED
         self.btn1.was_held = True
         if self.btn2.was_held:
             logging.info("両方のボタンが長押しされました。プログラムを終了します。")
             asyncio.create_task(shutdown(self.loop))
+        else:
+            REMAP_ENABLED = not REMAP_ENABLED
+            state_text = "有効" if REMAP_ENABLED else "無効"
+            logging.info(f"GPIOボタン1長押し: キーリマップを{state_text}にしました。")
 
     def released1(self, btn):
         if not self.btn1.was_held: self.pressed1(btn)
         self.btn1.was_held = False
 
-    def pressed1(self, btn): logging.info("ボタン1が押されました。")
+    def pressed1(self, btn): logging.info("GPIOボタン1が短押しされました。")
 
     def held2(self, btn):
         self.btn2.was_held = True
