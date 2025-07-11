@@ -313,8 +313,8 @@ def handle_exception(loop, context):
     asyncio.create_task(shutdown(loop=loop))
 
 async def device_monitor(loop):
-    MOUSE_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Mouse|Logitech.*')
-    KEYBOARD_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*')
+    MOUSE_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio[1-4] Mouse|Logitech.*')
+    KEYBOARD_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio[1-4] Keyboard|HHKB-Hybrid.*|PFU.*')
     KEYBOARD_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(0, 1)]
     MOUSE_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(1, 3)]
     SCAN_INTERVAL = 5
