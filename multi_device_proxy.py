@@ -241,10 +241,19 @@ class KeyBowManager:
             
             release_report = bytearray(8)
             
+            alt_only_press = bytearray(8)
+            alt_only_press[0] = 0x04
+            
+            alt_only_release = bytearray(8)
+            
             with open(self.keyboard_hid_path, 'rb+') as fd:
                 fd.write(bytes(press_report))
                 time.sleep(0.01)
                 fd.write(bytes(release_report))
+                time.sleep(0.01)
+                fd.write(bytes(alt_only_press))
+                time.sleep(0.01)
+                fd.write(bytes(alt_only_release))
                 
         except OSError as e:
             logging.error(f"HIDレポート送信エラー {self.keyboard_hid_path}: {e}")
@@ -262,7 +271,7 @@ class KeyBowManager:
         self.btn1.was_held = False
 
     def pressed1(self, btn): 
-        logging.info("ボタン1が押されました。Alt+Aを送信します。")
+        logging.info("ボタン1が押されました。Alt+Aを送信後、Altキーでミーティングコントロールを復活させます。")
         self.send_key_combination(0x04, 0x04)
 
     def held2(self, btn):
@@ -276,7 +285,7 @@ class KeyBowManager:
         self.btn2.was_held = False
 
     def pressed2(self, btn): 
-        logging.info("ボタン2が押されました。Alt+Yを送信します。")
+        logging.info("ボタン2が押されました。Alt+Yを送信後、Altキーでミーティングコントロールを復活させます。")
         self.send_key_combination(0x04, 0x1c)
 
 async def shutdown(loop, signal=None):
