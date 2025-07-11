@@ -205,7 +205,11 @@ class KeyboardProxy:
         report = bytearray(8)
         pressed_hid_codes = [self.remap(k) for k in self.pressed_keys]
         modifier = self.modifier
-        if self.isShiftUp: modifier |= 0x02
+        if self.isShiftUp:
+            modifier |= 0x02
+            report[0] = 0x02
+            self.write_report(bytes(report))
+            time.sleep(0.01)
         elif self.isShiftDown: modifier &= ~self.Shiftbit
         report[0] = modifier
         for i, code in enumerate(filter(None, pressed_hid_codes[:6])):
