@@ -11,6 +11,8 @@ from enum import IntEnum
 from evdev import InputDevice, ecodes, categorize
 from hid_keys import hid_key_map as hid_keys
 
+REMAP_ENABLED = True
+
 try:
     from gpiozero import Button
 except ImportError:
@@ -171,6 +173,9 @@ class KeyboardProxy:
             self.update_state()
 
     def remap(self, keycode):
+        global REMAP_ENABLED
+        if not REMAP_ENABLED:
+            return hid_keys.get(keycode, 0)
         if keycode not in hid_keys: return 0
         if keycode == 'KEY_LEFTBRACE': keycode = 'KEY_RIGHTBRACE'
         elif keycode == 'KEY_RIGHTBRACE': keycode = 'KEY_BACKSLASH'
@@ -261,10 +266,15 @@ class KeyBowManager:
             logging.error(f"予期せぬエラー: {e}")
 
     def held1(self, btn):
+        global REMAP_ENABLED
         self.btn1.was_held = True
         if self.btn2.was_held:
             logging.info("両方のボタンが長押しされました。プログラムを終了します。")
             asyncio.create_task(shutdown(self.loop))
+        else:
+            REMAP_ENABLED = not REMAP_ENABLED
+            state_text = "有効" if REMAP_ENABLED else "無効"
+            logging.info(f"GPIOボタン1長押し: キーリマップを{state_text}にしました。")
 
     def released1(self, btn):
         if not self.btn1.was_held: self.pressed1(btn)
@@ -303,8 +313,8 @@ def handle_exception(loop, context):
     asyncio.create_task(shutdown(loop=loop))
 
 async def device_monitor(loop):
-    MOUSE_DEVICENAME_PATTERN = 'HHKB-Studio4 Mouse|Logitech.*'
-    KEYBOARD_DEVICENAME_PATTERN = 'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*'
+    MOUSE_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Mouse|Logitech.*')
+    KEYBOARD_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*')
     KEYBOARD_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(0, 1)]
     MOUSE_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(1, 3)]
     SCAN_INTERVAL = 5
@@ -313,15 +323,30 @@ async def device_monitor(loop):
     managed_mice = {}
     available_keyboard_hids = set(KEYBOARD_HID_OUTPUTS)
     available_mouse_hids = set(MOUSE_HID_OUTPUTS)
+    cached_device_paths = set()
+    cached_devices = {}
     logging.info("マウスとキーボードの動的監視を開始します...")
 
     while True:
         try:
             reap_dead_tasks(managed_keyboards, available_keyboard_hids, "キーボード")
             reap_dead_tasks(managed_mice, available_mouse_hids, "マウス")
-            all_devices = {dev.path: dev for dev in [evdev.InputDevice(path) for path in evdev.list_devices()]}
-            current_keyboards = {p: d for p, d in all_devices.items() if re.match(KEYBOARD_DEVICENAME_PATTERN, d.name)}
-            current_mice = {p: d for p, d in all_devices.items() if re.match(MOUSE_DEVICENAME_PATTERN, d.name)}
+            
+            current_device_paths = set(evdev.list_devices())
+            if current_device_paths != cached_device_paths:
+                cached_devices = {}
+                for path in current_device_paths:
+                    try:
+                        cached_devices[path] = evdev.InputDevice(path)
+                    except (OSError, PermissionError):
+                        continue
+                cached_device_paths = current_device_paths
+            
+            current_keyboards = {p: d for p, d in cached_devices.items() 
+                               if KEYBOARD_DEVICENAME_PATTERN.match(d.name)}
+            current_mice = {p: d for p, d in cached_devices.items() 
+                           if MOUSE_DEVICENAME_PATTERN.match(d.name)}
+            
             manage_device_connections(current_keyboards, managed_keyboards, available_keyboard_hids, KeyboardProxy, "キーボード", loop)
             manage_device_connections(current_mice, managed_mice, available_mouse_hids, MouseProxy, "マウス", loop)
         except Exception as e:
