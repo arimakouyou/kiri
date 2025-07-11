@@ -271,8 +271,8 @@ def handle_exception(loop, context):
     asyncio.create_task(shutdown(loop=loop))
 
 async def device_monitor(loop):
-    MOUSE_DEVICENAME_PATTERN = 'HHKB-Studio4 Mouse|Logitech.*'
-    KEYBOARD_DEVICENAME_PATTERN = 'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*'
+    MOUSE_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Mouse|Logitech.*')
+    KEYBOARD_DEVICENAME_PATTERN = re.compile(r'HHKB-Studio4 Keyboard|HHKB-Hybrid.*|PFU.*')
     KEYBOARD_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(0, 1)]
     MOUSE_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(1, 3)]
     SCAN_INTERVAL = 5
@@ -281,15 +281,30 @@ async def device_monitor(loop):
     managed_mice = {}
     available_keyboard_hids = set(KEYBOARD_HID_OUTPUTS)
     available_mouse_hids = set(MOUSE_HID_OUTPUTS)
+    cached_device_paths = set()
+    cached_devices = {}
     logging.info("マウスとキーボードの動的監視を開始します...")
 
     while True:
         try:
             reap_dead_tasks(managed_keyboards, available_keyboard_hids, "キーボード")
             reap_dead_tasks(managed_mice, available_mouse_hids, "マウス")
-            all_devices = {dev.path: dev for dev in [evdev.InputDevice(path) for path in evdev.list_devices()]}
-            current_keyboards = {p: d for p, d in all_devices.items() if re.match(KEYBOARD_DEVICENAME_PATTERN, d.name)}
-            current_mice = {p: d for p, d in all_devices.items() if re.match(MOUSE_DEVICENAME_PATTERN, d.name)}
+            
+            current_device_paths = set(evdev.list_devices())
+            if current_device_paths != cached_device_paths:
+                cached_devices = {}
+                for path in current_device_paths:
+                    try:
+                        cached_devices[path] = evdev.InputDevice(path)
+                    except (OSError, PermissionError):
+                        continue
+                cached_device_paths = current_device_paths
+            
+            current_keyboards = {p: d for p, d in cached_devices.items() 
+                               if KEYBOARD_DEVICENAME_PATTERN.match(d.name)}
+            current_mice = {p: d for p, d in cached_devices.items() 
+                           if MOUSE_DEVICENAME_PATTERN.match(d.name)}
+            
             manage_device_connections(current_keyboards, managed_keyboards, available_keyboard_hids, KeyboardProxy, "キーボード", loop)
             manage_device_connections(current_mice, managed_mice, available_mouse_hids, MouseProxy, "マウス", loop)
         except Exception as e:
