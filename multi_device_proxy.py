@@ -240,6 +240,9 @@ class KeyBowManager:
         self.btn2 = Button(22, hold_time=3, bounce_time=0.05)
         self.btn2.when_held = self.held2
         self.btn2.when_released = self.released2
+        self.btn3 = Button(18, hold_time=3, bounce_time=0.05)
+        self.btn3.when_held = self.held3
+        self.btn3.when_released = self.released3
         logging.info("KeyBow (GPIOボタン) マネージャーを初期化しました。")
 
     def send_key_combination(self, modifier_bits, key_code):
@@ -269,12 +272,68 @@ class KeyBowManager:
         except Exception as e:
             logging.error(f"予期せぬエラー: {e}")
 
+    def send_email_address(self):
+        """メールアドレス 'test@example.com' を入力"""
+        email = "test@example.com"
+        logging.info(f"メールアドレスを入力します: {email}")
+        
+        try:
+            with open(self.keyboard_hid_path, 'rb+') as fd:
+                for char in email:
+                    if char == '@':
+                        press_report = bytearray(8)
+                        press_report[0] = 0x02
+                        press_report[2] = 0x1f
+                        fd.write(bytes(press_report))
+                        time.sleep(0.1)
+                        
+                        release_report = bytearray(8)
+                        fd.write(bytes(release_report))
+                        time.sleep(0.1)
+                    elif char == '-':
+                        press_report = bytearray(8)
+                        press_report[2] = 0x2d
+                        fd.write(bytes(press_report))
+                        time.sleep(0.1)
+                        
+                        release_report = bytearray(8)
+                        fd.write(bytes(release_report))
+                        time.sleep(0.1)
+                    elif char == '.':
+                        press_report = bytearray(8)
+                        press_report[2] = 0x37
+                        fd.write(bytes(press_report))
+                        time.sleep(0.1)
+                        
+                        release_report = bytearray(8)
+                        fd.write(bytes(release_report))
+                        time.sleep(0.1)
+                    elif char.isalpha():
+                        key_name = f'KEY_{char.upper()}'
+                        if key_name in hid_keys:
+                            press_report = bytearray(8)
+                            press_report[2] = hid_keys[key_name]
+                            fd.write(bytes(press_report))
+                            time.sleep(0.1)
+                            
+                            release_report = bytearray(8)
+                            fd.write(bytes(release_report))
+                            time.sleep(0.1)
+                        
+        except OSError as e:
+            logging.error(f"メールアドレス入力中にHIDレポート送信エラー: {e}")
+        except Exception as e:
+            logging.error(f"メールアドレス入力中に予期せぬエラー: {e}")
+
     def held1(self, btn):
         global REMAP_ENABLED
         self.btn1.was_held = True
-        if self.btn2.was_held:
-            logging.info("両方のボタンが長押しされました。プログラムを終了します。")
+        if self.btn3.was_held:
+            logging.info("ボタン1と3が長押しされました。プログラムを終了します。")
             asyncio.create_task(shutdown(self.loop))
+        elif self.btn2.was_held:
+            logging.info("ボタン1と2が長押しされました。メールアドレスを入力します。")
+            self.send_email_address()
         else:
             REMAP_ENABLED = not REMAP_ENABLED
             state_text = "有効" if REMAP_ENABLED else "無効"
@@ -291,8 +350,8 @@ class KeyBowManager:
     def held2(self, btn):
         self.btn2.was_held = True
         if self.btn1.was_held:
-            logging.info("両方のボタンが長押しされました。プログラムを終了します。")
-            asyncio.create_task(shutdown(self.loop))
+            logging.info("ボタン1と2が長押しされました。メールアドレスを入力します。")
+            self.send_email_address()
 
     def released2(self, btn):
         if not self.btn2.was_held: self.pressed2(btn)
@@ -301,6 +360,20 @@ class KeyBowManager:
     def pressed2(self, btn): 
         logging.info("ボタン2が押されました。Alt+Yを送信後、Altキーでミーティングコントロールを復活させます。")
         self.send_key_combination(0x04, 0x1c)
+
+    def held3(self, btn):
+        self.btn3.was_held = True
+        if self.btn1.was_held:
+            logging.info("ボタン1と3が長押しされました。プログラムを終了します。")
+            asyncio.create_task(shutdown(self.loop))
+
+    def released3(self, btn):
+        if not self.btn3.was_held: self.pressed3(btn)
+        self.btn3.was_held = False
+
+    def pressed3(self, btn): 
+        logging.info("ボタン3が押されました。スペースキーを送信します。")
+        self.send_key_combination(0x00, 0x2c)
 
 async def shutdown(loop, signal=None):
     if signal: logging.info(f"終了シグナル {signal.name} を受信...")
