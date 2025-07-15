@@ -288,7 +288,7 @@ class KeyBowManager:
         self.btn2 = Button(22, hold_time=3, bounce_time=0.05)
         self.btn2.when_held = self.held2
         self.btn2.when_released = self.released2
-        self.btn3 = Button(18, hold_time=3, bounce_time=0.05)
+        self.btn3 = Button(17, hold_time=3, bounce_time=0.05)
         self.btn3.when_held = self.held3
         self.btn3.when_released = self.released3
         logging.info("KeyBow (GPIOボタン) マネージャーを初期化しました。")
