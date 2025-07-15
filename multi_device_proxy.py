@@ -31,6 +31,8 @@ class MouseProxy:
         self.input_device_path = input_device_path
         self.hid_output_path = hid_output_path
         self.device = None
+        self.button_state_buffer = {}
+        self.last_button_event_time = {}
         self.reset_state()
 
     def connect_device(self):
@@ -38,6 +40,7 @@ class MouseProxy:
             self.device = InputDevice(self.input_device_path)
             self.device.grab()
             self.log.info(f"マウスを正常に捕捉: {self.device.path} ({self.device.name}) -> {self.hid_output_path}")
+            self.restore_button_state()
             return True
         except Exception as e:
             self.log.error(f"{self.input_device_path}への接続失敗: {e}")
@@ -46,6 +49,10 @@ class MouseProxy:
     def reset_state(self):
         self.button_left = self.button_right = self.button_center = self.back = self.forward = 0
         self.movex = self.movey = self.scrolly = self.btn = 0
+        if not hasattr(self, 'button_state_buffer'):
+            self.button_state_buffer = {}
+        if not hasattr(self, 'last_button_event_time'):
+            self.last_button_event_time = {}
 
     async def run(self):
         while True:
@@ -60,6 +67,7 @@ class MouseProxy:
                         self.update_state()
             except (OSError, asyncio.CancelledError) as e:
                 self.log.error(f"マウス {self.input_device_path} 通信切断: {type(e).__name__}")
+                self.log.info(f"切断時のボタン状態を保持: {self.btn}")
                 if self.device: self.device.close()
                 self.device = None
                 break
@@ -68,13 +76,53 @@ class MouseProxy:
                 break
 
     def handle_key_event(self, event):
+        current_time = time.time()
         is_press = event.value == 1
-        if event.code == ecodes.BTN_LEFT: self.button_left = 1 if is_press else 0
-        elif event.code == ecodes.BTN_RIGHT: self.button_right = (1 << 1) if is_press else 0
-        elif event.code == ecodes.BTN_MIDDLE: self.button_center = (1 << 2) if is_press else 0
-        elif event.code == ecodes.BTN_SIDE: self.back = (1 << 3) if is_press else 0
-        elif event.code == ecodes.BTN_EXTRA: self.forward = (1 << 4) if is_press else 0
+        
+        if event.code == ecodes.BTN_LEFT:
+            self.button_state_buffer[ecodes.BTN_LEFT] = is_press
+            self.last_button_event_time[ecodes.BTN_LEFT] = current_time
+            self.button_left = 1 if is_press else 0
+        elif event.code == ecodes.BTN_RIGHT:
+            self.button_state_buffer[ecodes.BTN_RIGHT] = is_press
+            self.last_button_event_time[ecodes.BTN_RIGHT] = current_time
+            self.button_right = (1 << 1) if is_press else 0
+        elif event.code == ecodes.BTN_MIDDLE:
+            self.button_state_buffer[ecodes.BTN_MIDDLE] = is_press
+            self.last_button_event_time[ecodes.BTN_MIDDLE] = current_time
+            self.button_center = (1 << 2) if is_press else 0
+        elif event.code == ecodes.BTN_SIDE:
+            self.button_state_buffer[ecodes.BTN_SIDE] = is_press
+            self.last_button_event_time[ecodes.BTN_SIDE] = current_time
+            self.back = (1 << 3) if is_press else 0
+        elif event.code == ecodes.BTN_EXTRA:
+            self.button_state_buffer[ecodes.BTN_EXTRA] = is_press
+            self.last_button_event_time[ecodes.BTN_EXTRA] = current_time
+            self.forward = (1 << 4) if is_press else 0
+        
         self.btn = self.button_left | self.button_right | self.button_center | self.back | self.forward
+        self.log.debug(f"ボタンイベント: {event.code} = {is_press}, 統合状態: {self.btn}")
+
+    def restore_button_state(self):
+        current_time = time.time()
+        
+        for button_code, is_pressed in self.button_state_buffer.items():
+            last_event_time = self.last_button_event_time.get(button_code, 0)
+            if current_time - last_event_time < 5.0 and is_pressed:
+                if button_code == ecodes.BTN_LEFT:
+                    self.button_left = 1
+                elif button_code == ecodes.BTN_RIGHT:
+                    self.button_right = (1 << 1)
+                elif button_code == ecodes.BTN_MIDDLE:
+                    self.button_center = (1 << 2)
+                elif button_code == ecodes.BTN_SIDE:
+                    self.back = (1 << 3)
+                elif button_code == ecodes.BTN_EXTRA:
+                    self.forward = (1 << 4)
+        
+        self.btn = self.button_left | self.button_right | self.button_center | self.back | self.forward
+        if self.btn > 0:
+            self.log.info(f"ボタン状態を復旧しました: {self.btn}")
 
     def handle_rel_event(self, event):
         if event.code == ecodes.REL_X: self.movex = event.value
