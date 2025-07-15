@@ -273,8 +273,8 @@ class KeyBowManager:
             logging.error(f"予期せぬエラー: {e}")
 
     def send_email_address(self):
-        """メールアドレス 'hitoshi-oyama@internet.gmo' を入力"""
-        email = "hitoshi-oyama@internet.gmo"
+        """メールアドレス 'test@example.com' を入力"""
+        email = "test@example.com"
         logging.info(f"メールアドレスを入力します: {email}")
         
         try:
