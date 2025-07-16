@@ -10,6 +10,7 @@ fi
 echo "スクリプトを /usr/local/bin/ にコピーしています..."
 install -m 755 multi_device_proxy.py /usr/local/bin/multi_device_proxy.py
 install -m 755 setup_hid_gadget.sh /usr/local/bin/setup_hid_gadget.sh
+install -m 644 config.json /usr/local/bin/config.json
 
 echo "Systemdサービスファイルをコピーしています..."
 install -m 644 multi-hid-gadget.service /etc/systemd/system/

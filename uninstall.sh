@@ -18,6 +18,7 @@ rm -f /etc/systemd/system/multi_hid_proxy.service
 rm -f /etc/systemd/system/multi-hid-gadget.service
 rm -f /usr/local/bin/multi_device_proxy.py
 rm -f /usr/local/bin/setup_hid_gadget.sh
+rm -f /usr/local/bin/config.json
 
 echo "Systemdデーモンをリロードしています..."
 systemctl daemon-reload

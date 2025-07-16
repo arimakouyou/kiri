@@ -1,0 +1,15 @@
+{
+  "email_address": "your.email@domain.com",
+  "gpio_settings": {
+    "hold_time": 1.5,
+    "bounce_time": 0.05,
+    "combination_check_delay": 0.2
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "hid_paths": {
+    "keyboard": "/dev/hidg0",
+    "mouse_outputs": ["/dev/hidg1", "/dev/hidg2"]
+  }
+}
